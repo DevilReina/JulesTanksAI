@@ -40,6 +40,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // AI Tanks Array
     let aiTanks = [];
 
+    // Camera Variables
+    let cameraX = 0;
+    let cameraY = 0;
+
     // Ensure AITank class is available
     if (typeof AITank === 'undefined') {
         console.error('AITank class not found. Make sure aiTank.js is loaded before game.js.');
@@ -141,12 +145,19 @@ document.addEventListener('DOMContentLoaded', () => {
         // Clear the canvas
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-        // Display Player Level
-        ctx.fillStyle = 'white'; // Or 'black' if background is light
-        ctx.font = '20px Arial';
-        ctx.textAlign = 'left';
-        ctx.textBaseline = 'top';
-        ctx.fillText(`Level: ${playerTank.level}`, 30, 30);
+        // Update Camera Position
+        cameraX = playerTank.x - canvas.width / 2;
+        cameraY = playerTank.y - canvas.height / 2;
+
+        // Clamp Camera to World Boundaries
+        cameraX = Math.max(0, Math.min(cameraX, WORLD_WIDTH - canvas.width));
+        cameraY = Math.max(0, Math.min(cameraY, WORLD_HEIGHT - canvas.height));
+        
+        // Save context and apply camera translation
+        ctx.save();
+        ctx.translate(-cameraX, -cameraY);
+
+        // --- START OF WORLD-BASED DRAWING ---
 
         // Draw Upgrades
         upgrades.forEach(upgrade => {
@@ -213,6 +224,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
             aiTank.draw(ctx); // Draws AI tank and its health bar
         });
+        
+        // --- END OF WORLD-BASED DRAWING ---
+        ctx.restore(); // Restore context to pre-camera state
+
+        // UI elements that should NOT move with the camera can be drawn here.
+        // For example, a static minimap, score display, etc.
+        // The current "Level" display is drawn relative to the world, so it moves.
+        // If it needs to be static, it should be moved after ctx.restore().
+        // For now, let's move the Level display to be static.
+        
+        // Draw UI elements (like Player Level) that should be static on screen
+        ctx.fillStyle = 'white'; 
+        ctx.font = '20px Arial';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'top';
+        ctx.fillText(`Level: ${playerTank.level}`, 30, 30);
 
         // Request the next frame
         requestAnimationFrame(gameLoop);
@@ -282,6 +309,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const rect = canvas.getBoundingClientRect();
         const mouseX = event.clientX - rect.left;
         const mouseY = event.clientY - rect.top;
-        playerTank.shoot(mouseX, mouseY, projectiles); // Pass projectiles array
+
+        // Convert screen/canvas mouse coordinates to world coordinates
+        const worldMouseX = mouseX + cameraX;
+        const worldMouseY = mouseY + cameraY;
+
+        playerTank.shoot(worldMouseX, worldMouseY, projectiles); // Pass world coordinates
     });
 });

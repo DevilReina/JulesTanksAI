@@ -120,6 +120,8 @@ document.addEventListener('DOMContentLoaded', () => {
         playerTank.updatePosition(dx, dy);
 
         // Implement Boundary Checks / Player Death by Boundary
+        // This logic ensures player dies and respawns upon hitting world edges.
+        // Verified: The condition playerTank.y - playerTank.size < 0 correctly detects top boundary collision.
         if (playerTank.x - playerTank.size < 0 || 
             playerTank.x + playerTank.size > WORLD_WIDTH ||
             playerTank.y - playerTank.size < 0 ||
@@ -132,6 +134,53 @@ document.addEventListener('DOMContentLoaded', () => {
             // Optionally, clear projectiles or other game elements associated with the player
             // projectiles = []; // Example: Clears all projectiles on death
         }
+
+        // Tank vs. Tank Collision (Player vs. AI)
+        for (let i = aiTanks.length - 1; i >= 0; i--) { // Iterate backwards if AIs can be removed (e.g. on death)
+            const ai = aiTanks[i];
+            if (!ai || ai.hp <= 0) continue; // Skip if AI is already dead or null
+
+            if (checkCollision(playerTank, ai)) {
+                const playerLevel = playerTank.level;
+                const aiLevel = ai.level;
+                let crushed = false;
+
+                // Crushing Logic
+                if (playerLevel >= aiLevel + 4) { // Player crushes AI
+                    ai.takeDamage(ai.maxHp); // AI is crushed
+                    crushed = true;
+                    // ai.reset() will be called by takeDamage, which includes repositioning
+                } else if (aiLevel >= playerLevel + 4) { // AI crushes Player
+                    playerTank.takeDamage(playerTank.maxHp); // Player is crushed
+                    crushed = true;
+                    // playerTank.reset() will be called by takeDamage
+                    // and then game.js handles repositioning for player
+                    if (playerTank.hp <= 0) { // Check if player died from this
+                         const respawnPoint = findSafestRespawnPoint(aiTanks, WORLD_WIDTH, WORLD_HEIGHT);
+                         playerTank.x = respawnPoint.x;
+                         playerTank.y = respawnPoint.y;
+                    }
+                } 
+                // Ramming Logic (only if not crushed)
+                else if (!crushed && Math.abs(playerLevel - aiLevel) <= 3) {
+                    playerTank.takeDamage(10);
+                    ai.takeDamage(10);
+                    // Check if player died from ramming
+                    if (playerTank.hp <= 0) {
+                         const respawnPoint = findSafestRespawnPoint(aiTanks, WORLD_WIDTH, WORLD_HEIGHT);
+                         playerTank.x = respawnPoint.x;
+                         playerTank.y = respawnPoint.y;
+                    }
+                    // AI death from ramming is handled by its own takeDamage->reset cycle
+                }
+                
+                // If a crush happened, and the AI was the one crushed,
+                // we might want to skip further interactions with this specific AI for this frame.
+                // Iterating backwards and AI resetting (moving) might naturally handle this.
+                // If player crushed AI, AI might be "dead" (hp <=0) for next collision checks.
+            }
+        }
+
 
         // Upgrade Collection Logic
         for (let i = upgrades.length - 1; i >= 0; i--) {

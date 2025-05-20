@@ -40,8 +40,12 @@ class AITank extends Tank {
                 return;
             }
 
+            const barrelLength = this.size * 1.0; // Consistent with draw method and Tank.js
+            const projectileStartX = this.x + Math.cos(this.aimAngle) * barrelLength;
+            const projectileStartY = this.y + Math.sin(this.aimAngle) * barrelLength;
+
             const newProjectile = new Projectile(
-                this.x, this.y,
+                projectileStartX, projectileStartY,
                 projectileSize, projectileColor, projectileSpeed,
                 targetX, targetY,
                 this.level // Pass attacker's level
@@ -105,7 +109,17 @@ class AITank extends Tank {
         // Shooting Logic
         const distToPlayer = Math.sqrt((playerTank.x - this.x)**2 + (playerTank.y - this.y)**2);
         if (distToPlayer < this.shootingRange) {
+            // Update aim angle towards the player before shooting
+            this.aimAngle = Math.atan2(playerTank.y - this.y, playerTank.x - this.x);
             this.shoot(playerTank.x, playerTank.y, projectilesArray);
+        } else {
+            // Optional: If not in range, AI could have a default aim behavior,
+            // e.g., aim in movement direction or slowly sweep.
+            // For now, aimAngle only updates when a target is in range and it intends to shoot.
+            // Or, if movement target exists, aim towards it:
+            if (this.movementTarget) {
+                 this.aimAngle = Math.atan2(this.movementTarget.y - this.y, this.movementTarget.x - this.x);
+            }
         }
     }
 

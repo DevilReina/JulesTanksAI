@@ -47,6 +47,9 @@ document.addEventListener('DOMContentLoaded', () => {
     let cameraX = 0;
     let cameraY = 0;
 
+    // Mouse Position (relative to canvas)
+    let mousePos = { x: 0, y: 0 };
+
     // Ensure AITank class is available
     if (typeof AITank === 'undefined') {
         console.error('AITank class not found. Make sure aiTank.js is loaded before game.js.');
@@ -152,6 +155,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Update tank position
         playerTank.updatePosition(dx, dy);
+
+        // Update player's aim angle based on mouse position
+        const worldMouseX = mousePos.x + cameraX;
+        const worldMouseY = mousePos.y + cameraY;
+        playerTank.aimAngle = Math.atan2(worldMouseY - playerTank.y, worldMouseX - playerTank.x);
 
         // Implement Boundary Checks / Player Death by Boundary
         // This logic ensures player dies and respawns upon hitting world edges.
@@ -342,7 +350,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // For now, let's move the Level display to be static.
         
         // Draw UI elements (like Player Level) that should be static on screen
-        ctx.fillStyle = 'white'; 
+        ctx.fillStyle = 'black'; // Changed from 'white' to 'black'
         ctx.font = '20px Arial';
         ctx.textAlign = 'left';
         ctx.textBaseline = 'top';
@@ -359,7 +367,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const topTanks = allTanksForLeaderboard.slice(0, 10);
 
         // Draw Leaderboard
-        ctx.fillStyle = 'white';
+        ctx.fillStyle = 'black'; // Changed from 'white' to 'black'
         ctx.font = '16px Arial';
         ctx.textAlign = 'right'; // Align text to the right for top-right corner placement
         ctx.textBaseline = 'top';
@@ -447,16 +455,20 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // Input for Shooting (Mouse Click)
+    // Input for Shooting (Mouse Click) - Uses worldMouseX/Y already calculated for aiming
     canvas.addEventListener('click', (event) => {
+        // We use the continuously updated worldMouseX/Y from the gameLoop's calculation
+        // (derived from mousePos set by mousemove) for shooting.
+        // This ensures click-to-shoot uses the same aim point as visual tracking.
+        const worldMouseXForShooting = mousePos.x + cameraX;
+        const worldMouseYForShooting = mousePos.y + cameraY;
+        playerTank.shoot(worldMouseXForShooting, worldMouseYForShooting, projectiles);
+    });
+
+    // Mouse Move Listener for Aiming
+    canvas.addEventListener('mousemove', (event) => {
         const rect = canvas.getBoundingClientRect();
-        const mouseX = event.clientX - rect.left;
-        const mouseY = event.clientY - rect.top;
-
-        // Convert screen/canvas mouse coordinates to world coordinates
-        const worldMouseX = mouseX + cameraX;
-        const worldMouseY = mouseY + cameraY;
-
-        playerTank.shoot(worldMouseX, worldMouseY, projectiles); // Pass world coordinates
+        mousePos.x = event.clientX - rect.left;
+        mousePos.y = event.clientY - rect.top;
     });
 });

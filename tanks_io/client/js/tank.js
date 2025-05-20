@@ -29,6 +29,8 @@ class Tank {
         // Store initial/base values (importantly, after level-based speed/maxHp are set)
         this.originalSpeed = this.speed; 
         this.originalMaxHp = this.maxHp;
+
+        this.aimAngle = 0; // Initialize aim angle
     }
 
     activateEscape() {
@@ -119,8 +121,12 @@ class Tank {
             const projectileSpeed = 7;
             // projectileDamage is now calculated in game.js based on levels
 
+            const barrelLength = this.size * 1.0; // Consistent with draw method
+            const projectileStartX = this.x + Math.cos(this.aimAngle) * barrelLength;
+            const projectileStartY = this.y + Math.sin(this.aimAngle) * barrelLength;
+
             const newProjectile = new Projectile(
-                this.x, this.y, 
+                projectileStartX, projectileStartY, 
                 projectileSize, projectileColor, projectileSpeed, 
                 targetX, targetY, 
                 this.level // Pass attacker's level
@@ -159,17 +165,50 @@ class Tank {
         ctx.fill();
         ctx.closePath();
 
-        // Draw health bar
-        this.drawHealthBar(ctx);
+        // Draw health bar - position will need adjustment if tank body changes significantly
+        this.drawHealthBar(ctx); // Draw health bar first, so it's under the tank body/turret
 
-        // Optional: Draw escape aura
+        // Optional: Draw escape aura - also draw this before main tank parts
         if (this.isEscapeActive && this.escapeColor) {
+            ctx.save();
+            ctx.translate(this.x, this.y);
+            // No rotation for aura, it's a general circle
             ctx.beginPath();
-            ctx.arc(this.x, this.y, this.size + 5, 0, Math.PI * 2); // Slightly larger radius
+            ctx.arc(0, 0, this.size + 7, 0, Math.PI * 2); // Aura slightly larger
             ctx.fillStyle = this.escapeColor;
             ctx.fill();
             ctx.closePath();
+            ctx.restore();
         }
+
+        // Tank Body (Using dimensions from current prompt)
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        // Optional: Rotate body if tank has separate movement direction angle 
+        // ctx.rotate(this.movementAngle || 0); 
+        ctx.fillStyle = this.color;
+        ctx.fillRect(-this.size, -this.size * 0.7, this.size * 2, this.size * 1.4); // Body rectangle
+        ctx.restore();
+
+        // Turret and Barrel (Rotated Group - Using dimensions from current prompt)
+        ctx.save();
+        ctx.translate(this.x, this.y); // Translate to tank's center
+        ctx.rotate(this.aimAngle);    // Rotate by aimAngle
+        
+        // Turret (example: circle)
+        const turretRadius = this.size * 0.6;
+        ctx.fillStyle = 'grey'; // Or a darker shade of this.color
+        ctx.beginPath();
+        ctx.arc(0, 0, turretRadius, 0, Math.PI * 2); // Draw turret at (0,0) relative to translated/rotated context
+        ctx.fill();
+        
+        // Barrel (example: rectangle)
+        const barrelLength = this.size * 1.0; 
+        const barrelWidth = this.size * 0.3;
+        ctx.fillStyle = 'darkgrey';
+        // Barrel drawn extending from the turret center along the new x-axis (due to rotation)
+        ctx.fillRect(0, -barrelWidth / 2, barrelLength, barrelWidth); 
+        ctx.restore(); // Restore context
     }
 
     updatePosition(dx, dy) {

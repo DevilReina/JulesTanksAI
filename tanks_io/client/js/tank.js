@@ -15,6 +15,10 @@ class Tank {
         this.maxHp = BASE_MAX_HP;
         this.hp = this.maxHp;
         this.size = BASE_SIZE + this.level * SIZE_INCREMENT_PER_LEVEL;
+
+        // Shooting cooldown properties
+        this.lastShotTime = 0;
+        this.shootCooldown = 500; // milliseconds
     }
 
     collectUpgradeEffect() {
@@ -22,10 +26,22 @@ class Tank {
         this.size = BASE_SIZE + this.level * SIZE_INCREMENT_PER_LEVEL;
         this.maxHp = BASE_MAX_HP + this.level * HP_INCREMENT_PER_LEVEL;
         this.hp = this.maxHp; // Full heal on level up
+    }
 
-        // Shooting cooldown properties
-        this.lastShotTime = 0;
-        this.shootCooldown = 500; // milliseconds
+    reset() {
+        this.level = 1;
+        this.maxHp = BASE_MAX_HP; // Uses global constant
+        this.hp = this.maxHp;
+        this.size = BASE_SIZE + this.level * SIZE_INCREMENT_PER_LEVEL; // Uses global constants
+        // Position is handled in game.js
+    }
+
+    takeDamage(damageAmount) {
+        this.hp -= damageAmount;
+        if (this.hp <= 0) { // Changed to <= 0 for clarity
+            this.hp = 0; // Ensure HP doesn't go negative before reset
+            this.reset(); // Call reset when HP is 0 or less
+        }
     }
 
     shoot(targetX, targetY, projectilesArray) { // projectilesArray passed as argument
@@ -33,7 +49,7 @@ class Tank {
         if (now - this.lastShotTime > this.shootCooldown) {
             // Projectile properties - using some example values
             const projectileSize = 5;
-            const projectileColor = 'yellow'; // Or this.color for tank's color
+            const projectileColor = 'red'; // Changed from 'yellow' to 'red'
             const projectileSpeed = 7;
             const projectileDamage = 25; // Example damage
 

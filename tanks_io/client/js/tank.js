@@ -19,6 +19,45 @@ class Tank {
         // Shooting cooldown properties
         this.lastShotTime = 0;
         this.shootCooldown = 500; // milliseconds
+
+        // Emergency Escape properties
+        this.escapeCooldownEndTimestamp = 0;
+        this.isEscapeActive = false;
+        this.escapeDurationEndTimestamp = 0;
+        this.escapeColor = null; // For optional visual cue
+
+        // Store initial/base values (importantly, after level-based speed/maxHp are set)
+        this.originalSpeed = this.speed; 
+        this.originalMaxHp = this.maxHp;
+    }
+
+    activateEscape() {
+        if (Date.now() >= this.escapeCooldownEndTimestamp && !this.isEscapeActive) {
+            this.isEscapeActive = true;
+            
+            // originalSpeed and originalMaxHp are already set by constructor/reset
+            // If they could change by other means mid-life, re-capture here.
+            // For now, assume they hold the true base values for the current level/state pre-escape.
+
+            this.speed *= 3;
+            this.maxHp *= 2;
+            this.hp *= 2; 
+            this.hp = Math.min(this.hp, this.maxHp); // Ensure HP doesn't exceed new max HP
+
+            this.escapeDurationEndTimestamp = Date.now() + 5000; // 5 seconds duration
+            this.escapeCooldownEndTimestamp = Date.now() + 30000; // 30 seconds cooldown
+            this.escapeColor = 'rgba(0, 255, 255, 0.3)'; // Cyan aura
+        }
+    }
+
+    updateEffects() {
+        if (this.isEscapeActive && Date.now() >= this.escapeDurationEndTimestamp) {
+            this.speed = this.originalSpeed;
+            this.maxHp = this.originalMaxHp;
+            this.hp = Math.min(this.hp, this.maxHp); // Clamp HP to original max
+            this.isEscapeActive = false;
+            this.escapeColor = null;
+        }
     }
 
     collectUpgradeEffect() {
@@ -26,13 +65,40 @@ class Tank {
         this.size = BASE_SIZE + this.level * SIZE_INCREMENT_PER_LEVEL;
         this.maxHp = BASE_MAX_HP + this.level * HP_INCREMENT_PER_LEVEL;
         this.hp = this.maxHp; // Full heal on level up
+
+        // If escape is not active, update originalMaxHp as well.
+        // If escape IS active, originalMaxHp holds the pre-escape value.
+        if (!this.isEscapeActive) {
+            this.originalMaxHp = this.maxHp;
+        }
+        // Speed is not affected by upgrades in current design, so originalSpeed remains.
     }
 
     reset() {
+        // If escape was active, revert its stat changes before resetting other stats
+        if (this.isEscapeActive) {
+            this.speed = this.originalSpeed; // Restore original speed
+            this.maxHp = this.originalMaxHp; // Restore original maxHp
+            // HP will be set to maxHp below, which is now originalMaxHp
+        }
+        this.isEscapeActive = false;
+        this.escapeColor = null;
+        this.escapeDurationEndTimestamp = 0; // Stop any active escape effect
+
+        // Reset level-based stats
         this.level = 1;
-        this.maxHp = BASE_MAX_HP; // Uses global constant
-        this.hp = this.maxHp;
-        this.size = BASE_SIZE + this.level * SIZE_INCREMENT_PER_LEVEL; // Uses global constants
+        this.maxHp = BASE_MAX_HP; 
+        this.hp = this.maxHp; // Full health at new (or restored original) maxHp
+        this.size = BASE_SIZE + this.level * SIZE_INCREMENT_PER_LEVEL; 
+        
+        // Re-initialize originalSpeed and originalMaxHp for the new life based on current (level 1) stats
+        // Note: this.speed is assumed to be constant or reset to a base value if it can change by other means
+        // For now, this.speed is only changed by escape, so originalSpeed is the true base.
+        // If other mechanics change speed, this.speed should be reset to BASE_SPEED here.
+        this.originalSpeed = this.speed; // Re-capture base speed (which should be the actual base speed)
+        this.originalMaxHp = this.maxHp; // Re-capture base maxHp for level 1
+
+        // Cooldown for escape ability is NOT reset upon death, player has to wait.
         // Position is handled in game.js
     }
 
@@ -49,15 +115,15 @@ class Tank {
         if (now - this.lastShotTime > this.shootCooldown) {
             // Projectile properties - using some example values
             const projectileSize = 5;
-            const projectileColor = 'red'; // Changed from 'yellow' to 'red'
+            const projectileColor = 'red'; 
             const projectileSpeed = 7;
-            const projectileDamage = 25; // Example damage
+            // projectileDamage is now calculated in game.js based on levels
 
             const newProjectile = new Projectile(
                 this.x, this.y, 
                 projectileSize, projectileColor, projectileSpeed, 
                 targetX, targetY, 
-                projectileDamage
+                this.level // Pass attacker's level
             );
             projectilesArray.push(newProjectile);
             this.lastShotTime = now;
@@ -95,6 +161,15 @@ class Tank {
 
         // Draw health bar
         this.drawHealthBar(ctx);
+
+        // Optional: Draw escape aura
+        if (this.isEscapeActive && this.escapeColor) {
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.size + 5, 0, Math.PI * 2); // Slightly larger radius
+            ctx.fillStyle = this.escapeColor;
+            ctx.fill();
+            ctx.closePath();
+        }
     }
 
     updatePosition(dx, dy) {

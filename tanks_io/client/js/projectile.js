@@ -1,10 +1,11 @@
 class Projectile {
-    constructor(x, y, size, color, speed, targetX, targetY, damage) {
+    // Damage parameter removed, attackerLevel added
+    constructor(x, y, size, color, speed, targetX, targetY, attackerLevel) { 
         this.x = x;
         this.y = y;
         this.size = size; // e.g., radius 5
         this.color = color;
-        this.damage = damage; // e.g., 25
+        this.attackerLevel = attackerLevel; // Store attacker's level
 
         const dirX = targetX - x;
         const dirY = targetY - y;

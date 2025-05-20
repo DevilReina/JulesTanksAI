@@ -30,9 +30,9 @@ class AITank extends Tank {
         if (now - this.lastShotTime > this.shootCooldown) {
             // AI Projectile properties
             const projectileSize = 5;
-            const projectileColor = 'orange'; // AI projectiles are orange
-            const projectileSpeed = 6; // Slightly slower or different speed for AI
-            const projectileDamage = 20; // AI projectile damage
+            const projectileColor = 'orange'; 
+            const projectileSpeed = 6; 
+            // projectileDamage is now calculated in game.js based on levels
 
             // Ensure Projectile class is available (should be global)
             if (typeof Projectile === 'undefined') {
@@ -44,7 +44,7 @@ class AITank extends Tank {
                 this.x, this.y,
                 projectileSize, projectileColor, projectileSpeed,
                 targetX, targetY,
-                projectileDamage
+                this.level // Pass attacker's level
             );
             projectilesArray.push(newProjectile);
             this.lastShotTime = now;
@@ -53,8 +53,21 @@ class AITank extends Tank {
 
     // Override reset for AI-specific repositioning
     reset() {
-        super.reset(); // Call the base Tank's reset method
-        // Now, reposition the AI tank randomly
+        // Capture AI's state *before* reset changes position or color (if color could change)
+        const deathX = this.x;
+        const deathY = this.y;
+        const deathColor = this.color; // AI tank's own color
+
+        // Spawn upgrades at the death location using the global function
+        if (typeof window.spawnDroppedUpgrade === 'function') {
+            window.spawnDroppedUpgrade(deathX, deathY, deathColor);
+        } else {
+            console.error("spawnDroppedUpgrade function is not defined on window.");
+        }
+
+        super.reset(); // Call the base Tank's reset method (resets stats like HP, level, size)
+        
+        // Now, reposition the AI tank randomly (existing logic)
         if (this.worldWidth && this.worldHeight) {
             this.x = Math.random() * this.worldWidth;
             this.y = Math.random() * this.worldHeight;

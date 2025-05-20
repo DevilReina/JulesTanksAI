@@ -40,6 +40,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // AI Tanks Array
     let aiTanks = [];
 
+    // Damage Scaling Factor
+    const DAMAGE_SCALE_EXP_FACTOR = 1.5;
+
     // Camera Variables
     let cameraX = 0;
     let cameraY = 0;
@@ -55,31 +58,51 @@ document.addEventListener('DOMContentLoaded', () => {
     const aiTank2 = new AITank(WORLD_WIDTH - 150, WORLD_HEIGHT - 150, 'darkgreen', 2, 1, WORLD_WIDTH, WORLD_HEIGHT); // Changed color
     aiTanks.push(aiTank1, aiTank2);
 
+    // Default size for general upgrades
+    const GENERAL_UPGRADE_SIZE = 7;
+    const GENERAL_UPGRADE_TYPE = 'growth';
+    const GENERAL_UPGRADE_COLORS = ['green', 'yellow', 'purple', 'orange', 'cyan'];
 
-    function spawnUpgrade() {
-        if (upgrades.length >= MAX_UPGRADES) {
-            return; // Don't spawn more if max is reached
+    function spawnUpgrade(fixedX, fixedY, fixedColor = null, fixedType = GENERAL_UPGRADE_TYPE, fixedSize = GENERAL_UPGRADE_SIZE) {
+        if (upgrades.length >= MAX_UPGRADES && !fixedColor) { // Allow specific drops even if general max is reached
+            return; 
         }
 
-        const size = 7;
-        const randomX = Math.random() * (WORLD_WIDTH - size * 2) + size; // Avoid edges
-        const randomY = Math.random() * (WORLD_HEIGHT - size * 2) + size; // Avoid edges
+        const x = (fixedX !== undefined && fixedX !== null) ? fixedX : Math.random() * (WORLD_WIDTH - fixedSize * 2) + fixedSize;
+        const y = (fixedY !== undefined && fixedY !== null) ? fixedY : Math.random() * (WORLD_HEIGHT - fixedSize * 2) + fixedSize;
         
-        const colors = ['green', 'yellow', 'purple', 'orange', 'cyan'];
-        const randomColor = colors[Math.floor(Math.random() * colors.length)];
+        const color = fixedColor ? fixedColor : GENERAL_UPGRADE_COLORS[Math.floor(Math.random() * GENERAL_UPGRADE_COLORS.length)];
         
-        // For now, only 'growth' type, can be expanded later
-        const newUpgrade = new Upgrade(randomX, randomY, size, randomColor, 'growth');
+        const type = fixedType;
+        const size = fixedSize;
+        
+        const newUpgrade = new Upgrade(x, y, size, color, type);
         upgrades.push(newUpgrade);
     }
 
     // Initial spawning of upgrades
     for (let i = 0; i < 5; i++) {
-        spawnUpgrade();
+        spawnUpgrade(); // Calls with no args for random general upgrades
     }
 
     // Periodic spawning of upgrades
-    setInterval(spawnUpgrade, UPGRADE_SPAWN_INTERVAL);
+    setInterval(() => spawnUpgrade(), UPGRADE_SPAWN_INTERVAL); // Ensure it calls with no args
+
+    // Function to spawn a cluster of upgrades from a defeated AI
+    function spawnDroppedUpgrade(x, y, color) {
+        const SPREAD_RADIUS = 20; // Max distance from center point
+        const NUM_DROPS = 3;
+        const DROP_TYPE = 'growth_plus'; // Custom type for AI drops
+        const DROP_SIZE = 5;       // Custom size for AI drops
+
+        for (let i = 0; i < NUM_DROPS; i++) {
+            const offsetX = (Math.random() - 0.5) * 2 * SPREAD_RADIUS;
+            const offsetY = (Math.random() - 0.5) * 2 * SPREAD_RADIUS;
+            // Call the enhanced spawnUpgrade with specific parameters
+            spawnUpgrade(x + offsetX, y + offsetY, color, DROP_TYPE, DROP_SIZE);
+        }
+    }
+    window.spawnDroppedUpgrade = spawnDroppedUpgrade; // Make globally accessible for AITank.js
 
     // Collision Detection Function
     function checkCollision(circle1, circle2) {
@@ -98,7 +121,18 @@ document.addEventListener('DOMContentLoaded', () => {
         keysPressed[event.key] = false;
     });
 
+    // Additional keydown listener for non-movement actions like abilities
+    window.addEventListener('keydown', (event) => {
+        if (event.key === 'e' || event.key === 'E') {
+            playerTank.activateEscape();
+        }
+        // Add other ability keys here if needed
+    });
+
     function gameLoop() {
+        // Update player effects (like Emergency Escape duration)
+        playerTank.updateEffects();
+
         // Calculate dx, dy based on pressed keys
         let dx = 0;
         let dy = 0;
@@ -221,7 +255,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Player Collision
             if (p.color === 'orange' && checkCollision(p, playerTank)) { // AI projectile hitting player
-                playerTank.takeDamage(p.damage);
+                const attackerLevel = p.attackerLevel;
+                const targetLevel = playerTank.level;
+                const targetMaxHp = playerTank.maxHp;
+                let baseDamage = targetMaxHp * 0.25;
+                let actualDamage = baseDamage;
+
+                if (attackerLevel < targetLevel) {
+                    const levelDifference = targetLevel - attackerLevel;
+                    actualDamage = baseDamage / Math.pow(DAMAGE_SCALE_EXP_FACTOR, levelDifference);
+                }
+                actualDamage = Math.max(1, Math.floor(actualDamage));
+                
+                playerTank.takeDamage(actualDamage);
                 projectiles.splice(i, 1); // Remove projectile
                 if (playerTank.hp <= 0) { // playerTank.reset() is called internally by takeDamage
                     const respawnPoint = findSafestRespawnPoint(aiTanks, WORLD_WIDTH, WORLD_HEIGHT);
@@ -235,7 +281,19 @@ document.addEventListener('DOMContentLoaded', () => {
             for (let j = aiTanks.length - 1; j >= 0; j--) {
                 const ai = aiTanks[j];
                 if (p.color === 'red' && checkCollision(p, ai)) { // Player projectile hitting AI
-                    ai.takeDamage(p.damage);
+                    const attackerLevel = p.attackerLevel;
+                    const targetLevel = ai.level;
+                    const targetMaxHp = ai.maxHp;
+                    let baseDamage = targetMaxHp * 0.25;
+                    let actualDamage = baseDamage;
+
+                    if (attackerLevel < targetLevel) {
+                        const levelDifference = targetLevel - attackerLevel;
+                        actualDamage = baseDamage / Math.pow(DAMAGE_SCALE_EXP_FACTOR, levelDifference);
+                    }
+                    actualDamage = Math.max(1, Math.floor(actualDamage));
+
+                    ai.takeDamage(actualDamage);
                     projectiles.splice(i, 1); // Remove projectile
                     // AI's own reset method (including repositioning) is called internally by takeDamage
                     // if ai.hp <= 0.
@@ -289,6 +347,42 @@ document.addEventListener('DOMContentLoaded', () => {
         ctx.textAlign = 'left';
         ctx.textBaseline = 'top';
         ctx.fillText(`Level: ${playerTank.level}`, 30, 30);
+
+        // --- Leaderboard Drawing ---
+        // Gather tanks for leaderboard (player and active AI tanks)
+        let allTanksForLeaderboard = [playerTank, ...aiTanks.filter(ai => ai.hp > 0)];
+
+        // Sort tanks by level (descending), then by maxHp (descending) as a tie-breaker
+        allTanksForLeaderboard.sort((a, b) => b.level - a.level || b.maxHp - a.maxHp);
+
+        // Take top 10
+        const topTanks = allTanksForLeaderboard.slice(0, 10);
+
+        // Draw Leaderboard
+        ctx.fillStyle = 'white';
+        ctx.font = '16px Arial';
+        ctx.textAlign = 'right'; // Align text to the right for top-right corner placement
+        ctx.textBaseline = 'top';
+        
+        const leaderboardX = canvas.width - 30; // X position for right alignment
+        const leaderboardStartY = 30;         // Y position for the title
+        const lineHeight = 20;                // Line height for each entry
+
+        ctx.fillText('Leaderboard', leaderboardX, leaderboardStartY);
+
+        for (let i = 0; i < topTanks.length; i++) {
+            const tank = topTanks[i];
+            let displayName = '';
+            if (tank === playerTank) {
+                displayName = 'Player';
+            } else {
+                // Assuming AI tanks have a 'color' property that's a string
+                displayName = `AI (${tank.color || 'Unknown'})`; 
+            }
+            ctx.fillText(`${i + 1}. ${displayName} - Lvl: ${tank.level}`, leaderboardX, leaderboardStartY + lineHeight + (i * lineHeight));
+        }
+        // --- End of Leaderboard Drawing ---
+
 
         // Request the next frame
         requestAnimationFrame(gameLoop);

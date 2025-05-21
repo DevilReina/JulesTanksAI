@@ -4,8 +4,14 @@ const SIZE_INCREMENT_PER_LEVEL = 2;
 const BASE_MAX_HP = 100;
 const HP_INCREMENT_PER_LEVEL = 20;
 
+// Constants for Projectile properties related to Tank level
+const BASE_PROJECTILE_SIZE = 4;
+const PROJECTILE_SIZE_INCREMENT_PER_LEVEL = 0.5;
+
+const STANDARD_BASE_SPEED = 2.4;
+
 class Tank {
-    constructor(x, y, color, speed) { // Size removed, will be calculated
+    constructor(x, y, color, speed) { 
         this.x = x;
         this.y = y;
         this.color = color;
@@ -31,6 +37,10 @@ class Tank {
         this.originalMaxHp = this.maxHp;
 
         this.aimAngle = 0; // Initialize aim angle
+
+        // Triple Shot Power-up properties
+        this.isTripleShotActive = false;
+        this.tripleShotEndTimestamp = 0;
     }
 
     activateEscape() {
@@ -47,7 +57,7 @@ class Tank {
             this.hp = Math.min(this.hp, this.maxHp); // Ensure HP doesn't exceed new max HP
 
             this.escapeDurationEndTimestamp = Date.now() + 5000; // 5 seconds duration
-            this.escapeCooldownEndTimestamp = Date.now() + 30000; // 30 seconds cooldown
+            this.escapeCooldownEndTimestamp = Date.now() + 15000; // Changed to 15 seconds cooldown
             this.escapeColor = 'rgba(0, 255, 255, 0.3)'; // Cyan aura
         }
     }
@@ -60,20 +70,31 @@ class Tank {
             this.isEscapeActive = false;
             this.escapeColor = null;
         }
+
+        // Deactivate Triple Shot if duration ended
+        if (this.isTripleShotActive && Date.now() >= this.tripleShotEndTimestamp) {
+            this.isTripleShotActive = false;
+            // No specific visual cue for triple shot on tank body in this iteration
+        }
     }
 
-    collectUpgradeEffect() {
-        this.level++;
-        this.size = BASE_SIZE + this.level * SIZE_INCREMENT_PER_LEVEL;
-        this.maxHp = BASE_MAX_HP + this.level * HP_INCREMENT_PER_LEVEL;
-        this.hp = this.maxHp; // Full heal on level up
+    collectUpgradeEffect(upgrade) { // Now accepts the upgrade object
+        if (upgrade.type === 'growth' || upgrade.type === 'growth_plus') {
+            this.level++;
+            this.size = BASE_SIZE + (this.level - 1) * SIZE_INCREMENT_PER_LEVEL; // Corrected level indexing for size
+            this.maxHp = BASE_MAX_HP + (this.level - 1) * HP_INCREMENT_PER_LEVEL; // Corrected level indexing for maxHp
+            this.hp = this.maxHp; // Full heal on level up
 
-        // If escape is not active, update originalMaxHp as well.
-        // If escape IS active, originalMaxHp holds the pre-escape value.
-        if (!this.isEscapeActive) {
-            this.originalMaxHp = this.maxHp;
+            // If escape is not active, update originalMaxHp as well.
+            if (!this.isEscapeActive) {
+                this.originalMaxHp = this.maxHp;
+            }
+            // Speed is not affected by upgrades in current design, so originalSpeed remains.
+        } else if (upgrade.type === TRIPLE_SHOT_TYPE) { // TRIPLE_SHOT_TYPE should be globally available or passed
+            this.isTripleShotActive = true;
+            this.tripleShotEndTimestamp = Date.now() + 10000; // 10 seconds duration
+            // Optional: Add visual cue logic here if needed on the tank itself
         }
-        // Speed is not affected by upgrades in current design, so originalSpeed remains.
     }
 
     reset() {
@@ -86,6 +107,9 @@ class Tank {
         this.isEscapeActive = false;
         this.escapeColor = null;
         this.escapeDurationEndTimestamp = 0; // Stop any active escape effect
+        
+        this.isTripleShotActive = false; // Reset triple shot on death
+        this.tripleShotEndTimestamp = 0;
 
         // Reset level-based stats
         this.level = 1;
@@ -115,8 +139,10 @@ class Tank {
     shoot(targetX, targetY, projectilesArray) { // projectilesArray passed as argument
         const now = Date.now();
         if (now - this.lastShotTime > this.shootCooldown) {
-            // Projectile properties - using some example values
-            const projectileSize = 5;
+            // Calculate dynamic projectile size
+            let currentProjectileSize = BASE_PROJECTILE_SIZE + (this.level - 1) * PROJECTILE_SIZE_INCREMENT_PER_LEVEL;
+            currentProjectileSize = Math.max(1, currentProjectileSize); // Ensure min size of 1
+
             const projectileColor = 'red'; 
             const projectileSpeed = 7;
             // projectileDamage is now calculated in game.js based on levels
@@ -125,13 +151,40 @@ class Tank {
             const projectileStartX = this.x + Math.cos(this.aimAngle) * barrelLength;
             const projectileStartY = this.y + Math.sin(this.aimAngle) * barrelLength;
 
-            const newProjectile = new Projectile(
+            // Main projectile
+            projectilesArray.push(new Projectile(
                 projectileStartX, projectileStartY, 
-                projectileSize, projectileColor, projectileSpeed, 
+                currentProjectileSize, projectileColor, projectileSpeed, 
                 targetX, targetY, 
-                this.level // Pass attacker's level
-            );
-            projectilesArray.push(newProjectile);
+                this.level
+            ));
+
+            if (this.isTripleShotActive) {
+                const angleOffset = Math.PI / 7; // Approx 25.7 degrees, slightly wider than PI/6
+
+                // Left Projectile
+                const angleLeft = this.aimAngle - angleOffset;
+                const targetX_left = projectileStartX + Math.cos(angleLeft) * 1000; // Target far
+                const targetY_left = projectileStartY + Math.sin(angleLeft) * 1000;
+                projectilesArray.push(new Projectile(
+                    projectileStartX, projectileStartY, 
+                    currentProjectileSize, projectileColor, projectileSpeed, 
+                    targetX_left, targetY_left, 
+                    this.level
+                ));
+
+                // Right Projectile
+                const angleRight = this.aimAngle + angleOffset;
+                const targetX_right = projectileStartX + Math.cos(angleRight) * 1000; // Target far
+                const targetY_right = projectileStartY + Math.sin(angleRight) * 1000;
+                projectilesArray.push(new Projectile(
+                    projectileStartX, projectileStartY, 
+                    currentProjectileSize, projectileColor, projectileSpeed, 
+                    targetX_right, targetY_right, 
+                    this.level
+                ));
+            }
+            
             this.lastShotTime = now;
         }
     }

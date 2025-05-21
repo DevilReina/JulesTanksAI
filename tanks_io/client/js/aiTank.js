@@ -28,8 +28,10 @@ class AITank extends Tank {
     shoot(targetX, targetY, projectilesArray) {
         const now = Date.now();
         if (now - this.lastShotTime > this.shootCooldown) {
-            // AI Projectile properties
-            const projectileSize = 5;
+            // Calculate dynamic projectile size (using constants from tank.js)
+            let currentProjectileSize = BASE_PROJECTILE_SIZE + (this.level - 1) * PROJECTILE_SIZE_INCREMENT_PER_LEVEL;
+            currentProjectileSize = Math.max(1, currentProjectileSize); // Ensure min size of 1
+
             const projectileColor = 'orange'; 
             const projectileSpeed = 6; 
             // projectileDamage is now calculated in game.js based on levels
@@ -46,7 +48,8 @@ class AITank extends Tank {
 
             const newProjectile = new Projectile(
                 projectileStartX, projectileStartY,
-                projectileSize, projectileColor, projectileSpeed,
+                currentProjectileSize, // Pass calculated dynamic size
+                projectileColor, projectileSpeed,
                 targetX, targetY,
                 this.level // Pass attacker's level
             );

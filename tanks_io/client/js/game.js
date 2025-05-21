@@ -14,7 +14,9 @@ document.addEventListener('DOMContentLoaded', () => {
     canvas.width = WORLD_WIDTH; // Set canvas size to match world
     canvas.height = WORLD_HEIGHT; // Set canvas size to match world
 
-    const playerTank = new Tank(WORLD_WIDTH / 2, WORLD_HEIGHT / 2, 'blue', 3); // Size removed from constructor
+    // STANDARD_BASE_SPEED is defined in tank.js, ensure it's accessible or re-defined here if not.
+    // Assuming tank.js is loaded first, STANDARD_BASE_SPEED should be globally available.
+    const playerTank = new Tank(WORLD_WIDTH / 2, WORLD_HEIGHT / 2, 'blue', STANDARD_BASE_SPEED); 
 
     // Upgrades Array
     let upgrades = [];
@@ -43,6 +45,11 @@ document.addEventListener('DOMContentLoaded', () => {
     // Damage Scaling Factor
     const DAMAGE_SCALE_EXP_FACTOR = 1.5;
 
+    // Triple Shot Power-up Spawning Management
+    let lastTripleShotSpawnTime = 0;
+    const TRIPLE_SHOT_SPAWN_INTERVAL = 15000; // 15 seconds
+    const MAX_TRIPLE_SHOT_ON_MAP = 1; // Limit to one triple shot power-up on map at a time
+
     // Camera Variables
     let cameraX = 0;
     let cameraY = 0;
@@ -57,8 +64,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Create AI Tank Instances
-    const aiTank1 = new AITank(150, 150, 'purple', 2, 1, WORLD_WIDTH, WORLD_HEIGHT);
-    const aiTank2 = new AITank(WORLD_WIDTH - 150, WORLD_HEIGHT - 150, 'darkgreen', 2, 1, WORLD_WIDTH, WORLD_HEIGHT); // Changed color
+    // Assuming STANDARD_BASE_SPEED is globally available from tank.js
+    const aiTank1 = new AITank(150, 150, 'purple', STANDARD_BASE_SPEED, 1, WORLD_WIDTH, WORLD_HEIGHT);
+    const aiTank2 = new AITank(WORLD_WIDTH - 150, WORLD_HEIGHT - 150, 'darkgreen', STANDARD_BASE_SPEED, 1, WORLD_WIDTH, WORLD_HEIGHT);
     aiTanks.push(aiTank1, aiTank2);
 
     // Default size for general upgrades
@@ -88,8 +96,14 @@ document.addEventListener('DOMContentLoaded', () => {
         spawnUpgrade(); // Calls with no args for random general upgrades
     }
 
-    // Periodic spawning of upgrades
-    setInterval(() => spawnUpgrade(), UPGRADE_SPAWN_INTERVAL); // Ensure it calls with no args
+    // Periodic spawning of upgrades (general growth upgrades)
+    setInterval(() => {
+        // Only spawn general 'growth' upgrades if below MAX_UPGRADES
+        if (upgrades.filter(upg => upg.type === GENERAL_UPGRADE_TYPE || upg.type === 'growth_plus').length < MAX_UPGRADES) {
+             spawnUpgrade(); // Calls with no args for random general upgrades
+        }
+    }, UPGRADE_SPAWN_INTERVAL);
+
 
     // Function to spawn a cluster of upgrades from a defeated AI
     function spawnDroppedUpgrade(x, y, color) {
@@ -126,7 +140,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Additional keydown listener for non-movement actions like abilities
     window.addEventListener('keydown', (event) => {
-        if (event.key === 'e' || event.key === 'E') {
+        if (event.code === 'Space') { // Changed from 'e' or 'E' to Spacebar
             playerTank.activateEscape();
         }
         // Add other ability keys here if needed
@@ -224,12 +238,23 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
 
+        // Specific Triple Shot Power-up Spawning (in gameLoop)
+        if (Date.now() - lastTripleShotSpawnTime > TRIPLE_SHOT_SPAWN_INTERVAL) {
+            const existingTripleShots = upgrades.filter(upg => upg.type === TRIPLE_SHOT_TYPE).length;
+            if (existingTripleShots < MAX_TRIPLE_SHOT_ON_MAP) {
+                // Spawn using undefined for x,y to get random position, specific type, color, and size
+                spawnUpgrade(undefined, undefined, 'lime', TRIPLE_SHOT_TYPE, 10); 
+                lastTripleShotSpawnTime = Date.now();
+            }
+        }
+
         // Upgrade Collection Logic
         for (let i = upgrades.length - 1; i >= 0; i--) {
-            if (checkCollision(playerTank, upgrades[i])) {
-                playerTank.collectUpgradeEffect(); // Call new method
+            const currentUpgrade = upgrades[i]; // Get the upgrade object
+            if (checkCollision(playerTank, currentUpgrade)) {
+                playerTank.collectUpgradeEffect(currentUpgrade); // Pass the whole upgrade object
                 upgrades.splice(i, 1); // Remove collected upgrade
-                // Optional: spawnUpgrade(); // To immediately replace
+                // Optional: spawnUpgrade(); // To immediately replace (if desired for general upgrades)
             }
         }
 

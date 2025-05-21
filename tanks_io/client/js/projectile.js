@@ -1,9 +1,11 @@
 class Projectile {
-    // Damage parameter removed, attackerLevel added
+    // Constructor updated to accept dynamic size.
+    // The 'size' parameter was already present from a previous refactor,
+    // but this confirms its role for dynamic sizing.
     constructor(x, y, size, color, speed, targetX, targetY, attackerLevel) { 
         this.x = x;
         this.y = y;
-        this.size = size; // e.g., radius 5
+        this.size = size; // Store dynamic size
         this.color = color;
         this.attackerLevel = attackerLevel; // Store attacker's level
 
@@ -30,7 +32,7 @@ class Projectile {
 
     draw(ctx) {
         ctx.beginPath();
-        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2); // Uses this.size
         ctx.fillStyle = this.color;
         ctx.fill();
         ctx.closePath();
